@@ -171,6 +171,53 @@ function restoreGlossaries(s){
 }
 
 // Parse pasted HTML inside an inert template. Only extracted text enters the editors.
+// Convert a complete preference example only when both labelled responses are present.
+function preferenceCards(markdown){
+  const lines=markdown.split('\n'), output=[];
+  const label=line=>(line||'').trim().replace(/^#{1,6}\s+/, '').replace(/\*\*/g,'');
+  const blankLinesAfter=i=>{while(i<lines.length && !lines[i].trim()) i++;return i};
+  function answer(at,letter){
+    const match=label(lines[at]).match(/^Response\s+([AB])\s*(?:[（(·:：—-]?\s*(Chosen|Rejected)\s*[）)]?)?$/i);
+    if(!match || match[1].toUpperCase()!==letter) return null;
+    let badge=match[2], start=blankLinesAfter(at+1);
+    if(!badge && /^(Chosen|Rejected)$/i.test(label(lines[start]))){
+      badge=label(lines[start]);
+      start=blankLinesAfter(start+1);
+    }
+    if(!badge || start>=lines.length) return null;
+    const chosen=badge.toLowerCase()==='chosen';
+    return {start,title:'> [!'+(chosen?'success':'failure')+'] Response '+letter+' · '+(chosen?'Chosen':'Rejected')};
+  }
+  function quote(title,body){
+    return [title,...body.join('\n').trim().split('\n').map(line=>line?'> '+line:'>')].join('\n');
+  }
+  let fence='';
+  for(let i=0;i<lines.length;i++){
+    const mark=lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if(mark){
+      if(!fence) fence=mark[1];
+      else if(mark[1].startsWith(fence) && !mark[2].trim()) fence='';
+    }
+    if(fence || !/^Prompt[:：]?$/i.test(label(lines[i]))){output.push(lines[i]);continue}
+    let a=null,b=null,j=i+1;
+    // Limit the match to one example. Never cross a heading, code block or another prompt.
+    for(;j<lines.length;j++){
+      if(!a && (a=answer(j,'A'))){a.at=j;j=a.start-1;continue}
+      if(a && (b=answer(j,'B'))) break;
+      if(/^(?:Prompt[:：]?|Response\s+[AB].*)$/i.test(label(lines[j])) || /^(?:#{1,6}\s|`{3,}|~{3,})/.test(lines[j])) break;
+    }
+    if(!b || !lines.slice(i+1,a.at).join('').trim() || !lines.slice(a.start,j).join('').trim()){
+      output.push(lines[i]);continue;
+    }
+    let end=b.start;
+    while(end<lines.length && lines[end].trim() && !/^(?:监督信号\s*[:：]|#{1,6}\s|Prompt$)/i.test(label(lines[end])) && !/^#{1,6}\s/.test(lines[end])) end++;
+    if(end===b.start){output.push(lines[i]);continue}
+    output.push('',quote('> [!question] Prompt',lines.slice(i+1,a.at)),'',quote(a.title,lines.slice(a.start,j)),'',quote(b.title,lines.slice(b.start,end)),'');
+    i=end-1;
+  }
+  return output.join('\n');
+}
+
 function readRich(html){
   const template=document.createElement('template');
   template.innerHTML=html;
@@ -222,6 +269,9 @@ function readRich(html){
       return '\n\n'+rows.map(row=>'| '+Array.from({length:width},(_,i)=>row[i]||'').join(' | ')+' |').join('\n')+'\n\n';
     }
     const body=Array.from(n.childNodes,walk).join('');
+    if(['span','strong','b'].includes(tag) && /^(Prompt|Response [AB]|Chosen|Rejected)$/i.test(body.trim())){
+      return '\n'+body.trim()+'\n';
+    }
     if(/^h[1-6]$/.test(tag)) return '\n\n'+'#'.repeat(Number(tag[1]))+' '+body.trim()+'\n\n';
     if(tag==='br') return '\n';
     if(tag==='li') return '\n'+(n.parentElement?.localName==='ol'?(Array.from(n.parentElement.children).indexOf(n)+Number(n.parentElement.getAttribute('start')||1))+'. ':'- ')+body.trim();
@@ -300,6 +350,15 @@ function schedulePreview(){
       if(revision!==previewRevision) return;
       const fragment=document.createElement('template');
       fragment.innerHTML=md.render(dst.value);
+      for(const box of fragment.content.querySelectorAll('blockquote')){
+        const paragraph=box.firstElementChild, first=paragraph?.firstChild;
+        if(first?.nodeType!==3) continue;
+        const heading=first.data.match(/^\[!(question|success|failure)\]\s+([^\n]+)$/i);
+        if(!heading) continue;
+        box.classList.add('preference-card',heading[1].toLowerCase());
+        const title=document.createElement('strong');
+        title.textContent=heading[2];first.replaceWith(title);
+      }
       for(const link of fragment.content.querySelectorAll('a')){
         link.target='_blank';link.rel='noopener noreferrer';
       }
@@ -342,7 +401,7 @@ sourceButton.onclick=()=>setPreview(false);
 let pasteWarning='';
 function refresh(){
   const result=convert(src.value);
-  dst.value=restoreGlossaries(result.value);
+  dst.value=preferenceCards(restoreGlossaries(result.value));
   schedulePreview();
   copy.disabled=!dst.value.trim();
   document.querySelector('#save').disabled=copy.disabled;
@@ -361,6 +420,7 @@ src.addEventListener('paste',e=>{
   let value=md||data.getData('text/plain'),warning='';
   if(html){
     const rich=readRich(html);
+    if(!md && !rich.missing && preferenceCards(rich.value)!==rich.value) value=rich.value;
     if((!md && (rich.recovered || rich.links || rich.images || rich.unavailable || (rich.table && !/^\s*\|.*\|/m.test(value)))) || (rich.images && !rich.missing && !/!\[/.test(value))) value=rich.value;
     if(rich.missing) warning='部分公式缺少 LaTeX 源码，请核对，或使用 ChatGPT 回复下方的复制按钮重新复制。';
     if(rich.unavailable) warning+=' 有 '+rich.unavailable+' 张图片或图形没有可用的网址，请另存图片后拖入 Obsidian。';

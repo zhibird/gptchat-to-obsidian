@@ -58,3 +58,11 @@ textarea{height:280px}
   clip-path: inset(50%);
   white-space: nowrap;
 }
+.preview .preference-card {
+  padding: 1px 16px;
+  border-left: 4px solid #7563aa;
+  background: #f4f1fa;
+  border-radius: 6px;
+}
+.preview .preference-card.success { border-color: #337452; background: #edf6ef; }
+.preview .preference-card.failure { border-color: #9a5551; background: #fbf0ef; }
