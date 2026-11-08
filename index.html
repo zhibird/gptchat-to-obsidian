@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src https: http: data:; connect-src 'none'">
+<title>公式转笔记 · Obsidian Markdown</title>
+<link rel="stylesheet" href="src/style.css">
+<main><header><h1>公式转笔记</h1><p>粘贴一整段 ChatGPT 回复，复制到 Obsidian。公式和说明文字一起保留。</p></header>
+<div class="grid"><section class="panel"><div class="bar"><h2><label for="src">聊天原文</label></h2><button id="example">试用示例</button></div><textarea spellcheck="false" id="src" placeholder="在这里粘贴回复，可包含多行公式和变量说明…"></textarea><footer>输入时自动转换</footer></section>
+<section class="panel result"><div class="bar"><div class="view-switch" role="group" aria-label="输出视图"><button id="showPreview" aria-controls="preview" aria-pressed="true">预览</button><button id="showSource" aria-controls="dst" aria-pressed="false">Markdown 源码</button></div><button id="copy" class="primary" disabled>复制全文</button></div><article class="preview" id="preview" tabindex="0" aria-label="笔记预览"></article><textarea spellcheck="false" id="dst" aria-label="Obsidian Markdown 源码" readonly hidden placeholder="转换后的 Markdown 会显示在这里"></textarea><footer><span id="status" aria-live="polite">等待输入</span><button id="save" disabled>保存 .md</button></footer></section></div>
+<p id="notice" role="status"></p><details><summary>怎样复制能保留公式？</summary><p>优先使用 ChatGPT 回复下方的复制按钮，也可以直接框选整段复制。如果公式只剩散落的字符，可重新复制回复，或请 ChatGPT 用 LaTeX 输出。粘贴到 Obsidian 笔记正文后，在实时预览或阅读视图查看。包含图片时，可尝试框选文字和图片一起复制；工具会保留可用的图片地址与网址链接。远程图片需要联网，失效或需要登录的图片可另存后拖入 Obsidian。</p><p>转换在本机完成；预览远程图片时，会连接图片所在的网站。关闭页面后，本次输入会清除。</p></details></main>
+<script>
+'use strict';
+window.MathJax={startup:{typeset:false},tex:{packages:['base','ams','newcommand','noundefined','boldsymbol']},svg:{fontCache:'local'}};
+</script>
+<script src="vendor/markdown-it.min.js"></script>
+<script src="vendor/tex-svg.js"></script>
+<script src="src/app.js"></script>
+</html>

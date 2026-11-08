@@ -1,0 +1,60 @@
+*{box-sizing:border-box}
+body{margin:0;background:#f5f4ef;color:#27283a;font:16px/1.6 "Segoe UI","Microsoft YaHei",sans-serif}
+main{max-width:1480px;margin:auto;padding:clamp(20px,4vw,60px)}
+header{border-bottom:1px solid #cfcec8;margin-bottom:28px;padding-bottom:20px}
+h1{font-size:clamp(30px,4vw,48px);letter-spacing:-.04em;margin:0}
+header p{margin:6px 0;color:#606172}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.panel{background:#fff;border:1px solid #d7d6d1;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.bar,footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px}
+.bar{min-height:72px;border-bottom:1px solid #deded7}
+.result .bar{background:#efedf8}
+h2{font-size:18px;margin:0}
+textarea{display:block;width:100%;height:clamp(320px,50vh,680px);padding:22px;border:0;resize:vertical;background:transparent;color:inherit;font:15px/1.8 Consolas,"Microsoft YaHei",monospace}
+textarea:focus-visible{outline:2px solid #7665b1;outline-offset:-3px}
+button{border:1px solid #c4c1cc;border-radius:7px;background:#fff;color:#434052;cursor:pointer;font:inherit;font-size:14px;padding:6px 12px}
+button:hover{background:#f4f3fa}
+button.primary{background:#504186;color:white;border-color:#504186}
+button:disabled{opacity:.55;cursor:default}
+footer{font-size:13px;color:#666478;border-top:1px solid #e4e3dd;min-height:46px}
+#notice{color:#724341;white-space:pre-line}
+details{margin-top:20px;font-size:14px;color:#575668}
+summary{cursor:pointer}
+@media(max-width:800px){.grid{grid-template-columns:1fr}
+textarea{height:280px}
+.bar{min-height:60px}
+}
+
+[hidden]{display:none!important}
+.panel{min-width:0}
+.result .bar{flex-wrap:wrap}
+.view-switch{display:flex;gap:3px;background:#dedbea;border-radius:8px;padding:3px}
+.view-switch button{font-size:13px;border:0;background:transparent;padding:3px 10px}
+.view-switch [aria-pressed=true]{background:white;color:#45347e;box-shadow:0 1px 3px #40345425}
+.preview{height:clamp(320px,50vh,680px);padding:6px 22px 22px;overflow:auto;overflow-wrap:anywhere}
+.preview:empty:before{content:"公式和表格的预览会显示在这里";display:block;color:#777;padding-top:16px}
+.preview p{margin:1em 0}
+.preview table{border-collapse:collapse;margin:1em 0;width:max-content;max-width:100%}
+.preview td,.preview th{border:1px solid #d7d6d1;padding:7px 12px;text-align:left}
+.preview th{background:#f5f4f8}
+.preview pre{overflow-x:auto;background:#f6f5f8;padding:12px}
+.preview blockquote{margin-left:0;border-left:3px solid #c5bfd8;padding-left:14px}
+.preview .display-math{overflow-x:auto;text-align:center;margin:1em 0}
+.preview mjx-container[display=true]{margin:.35em 0}
+.preview .math-error{color:#912b26;background:#fff1ee;padding:4px;white-space:pre-wrap}
+.preview a{color:#504186}
+@media(max-width:800px){.preview{height:280px}
+}
+
+.preview img{max-width:100%;height:auto;display:inline-block;border-radius:6px}
+.image-failure{display:block;padding:12px;background:#fff3e5;border:1px solid #ead5b6;color:#724a23}
+
+/* Keep MathJax's accessible MathML available to screen readers. */
+.preview mjx-assistive-mml {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
