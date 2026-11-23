@@ -1,6 +1,6 @@
 # 公式转笔记 · GPTChat to Obsidian
 
-**[在线使用 →](https://zhibird.github.io/gptchat-to-obsidian/)**　·　[下载离线版](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)
+**[在线使用](https://zhibird.github.io/gptchat-to-obsidian/)**　·　[下载离线网页](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)　·　[安装 Obsidian 插件](#obsidian-插件)
 
 把含公式、符号表、图片和参考链接的 ChatGPT 回复整理成 Obsidian 笔记。可以直接粘贴到装有插件的编辑器，也可以先在网页版预览，再复制全文。
 
@@ -10,7 +10,21 @@
 
 ![在 Obsidian 中把左侧的贝叶斯推导粘贴到右侧笔记，得到排版后的公式、两行符号表和保留原文的代码块](docs/formula-to-note-demo.gif)
 
-演示使用 Obsidian 1.15.0 和 Formula to Note 1.2.0。此版本可从源码构建。[插件源码与构建说明](https://github.com/zhibird/gptchat-to-obsidian/tree/40660b78d89b9907df5f952b12cee1c27c756980#开发与发布)
+演示使用 Obsidian 1.15.0 和 Formula to Note 1.2.0。[安装插件](#obsidian-插件) · [从源码构建](#开发与发布)
+
+## Obsidian 插件
+
+**Formula to Note（公式转笔记）** 可以直接在笔记编辑器中使用。适用于 Obsidian 1.5.0 及以上版本。
+
+1. 从包含插件的 [GitHub Release](https://github.com/zhibird/gptchat-to-obsidian/releases) 下载 `formula-to-note.zip`，解压到库的 `.obsidian/plugins/`。安装完成后，`.obsidian/plugins/formula-to-note/` 内应直接包含 `main.js` 和 `manifest.json`。从源码构建时，复制 `dist/formula-to-note/` 到相同位置即可。
+2. 重新加载 Obsidian，在「设置 → 第三方插件」中启用 **Formula to Note**。
+3. 从聊天回复复制一段推导，在笔记正文中粘贴，公式就会自动转换。
+
+**处理已有笔记**时，点击 Obsidian 最左侧工具栏的 **Σ 转换公式**。有选区时按钮只转换选中的文字，只有光标时转换整篇。阅读视图中点击会在同一标签打开编辑视图并转换整篇。可用编辑器的撤销操作一次撤回。命令面板里的 **转换选区** 也可以单独处理选中的文字。
+
+`\tau_t` 或 `y_t=m_{t+H}-m_t` 这样的无定界符公式会自动加上 `$...$`，在正文和表格中都能渲染。识别依据包括常见 TeX 命令、花括号包裹的上下标和数字上标。单独的 `a_b`、文件名和普通代码标识符按原文插入。
+
+Markdown 表格中的条件概率、范数和独立公式会留在同一个单元格内。四空格或制表符缩进形成的代码块、围栏代码、行内代码和笔记属性都受保护。粘贴文件、多光标粘贴和 Obsidian 内部复制沿用编辑器的原生行为。插件在本地处理当前操作，不需要账户或网络服务。
 
 ## 网页版
 
@@ -50,8 +64,24 @@ $$
 
 文本转换、公式排版和表格预览均在本机完成。预览远程图片时，浏览器会向图片所在网站请求图片。导出的笔记保留图片网址，显示效果取决于链接是否有效以及网站的访问权限。复制时缺少可用网址的图片或网页绘图，可另存后拖入 Obsidian。
 
-## 开发
+## 与同类插件的实现差异
 
-界面入口是 `index.html`，转换和预览逻辑在 `src/app.js`，样式在 `src/style.css`。直接打开入口即可运行。发布单文件版本时，在仓库根目录运行 `node scripts/build.mjs`，生成的文件位于 `dist/gptchat-to-obsidian.html`。
+| 项目 | 转换发生在哪里 | 适用场景 |
+| --- | --- | --- |
+| Formula to Note | 自动粘贴、侧栏 Σ 按钮、选区命令和独立网页共用转换逻辑 | 识别带明确 TeX 特征的无定界符公式，还原中文符号表，处理单元格里的条件概率和块公式 |
+| Math Paste Bridge 1.0.6 | 粘贴时从剪贴板恢复 LaTeX，检查光标周围的 Markdown | 新粘贴的原文即使缺少定界符，也能识别部分 TeX 和代数式，如 `\tau_t` 和 `y_t=m_{t+H}-m_t` |
+| Transfer LaTeX from GPT | 命令或侧栏按钮读取当前文件并替换公式定界符 | 对已有笔记执行整篇转换 |
 
-仓库内附 markdown-it 14.1.0 和 MathJax 3.2.2，第三方许可证见 [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt)。
+我们和 Math Paste Bridge 都能从带 LaTeX 注解的富文本中提取公式。无定界符公式的识别参考了它的 TeX 语法。Formula to Note 会把带定界符的条件概率和块公式放在原单元格中，也能把逐行的「符号 / 含义」恢复为表格。侧栏 Σ 的位置参考了 Transfer LaTeX from GPT。[Math Paste Bridge 转换范围](https://github.com/hlyang1992/math-paste-bridge/blob/449357f29808f59418cef21ed50c8f8216a00f0d/README.zh-CN.md) · [Transfer LaTeX from GPT 按钮实现](https://github.com/xixia123/obsidian-transfer-latex-from-gpt/blob/4ae70733d602445656fabf65e12c674f8e3d862d/main.ts)
+
+## 开发与发布
+
+使用 Node.js 24 和 npm。`npm ci` 安装开发依赖，`npm test` 运行转换、网页预览、复制及编辑器事件的回归测试。`npm run build` 生成离线网页 `dist/gptchat-to-obsidian.html` 和插件目录 `dist/formula-to-note/`。网页版开发入口 `index.html` 依然可以直接用浏览器打开。
+
+提交转换问题时，可附上脱敏的原文、复制方式和预期 Markdown。成对的[输入和预期结果](test/fixtures)可用作新测试的起点。
+
+发布时同步更新 `manifest.json`、`versions.json` 和 npm 包版本。在 GitHub 上推送与插件版本完全一致的标签（如 `1.2.0`）。测试和构建通过后，Actions 创建包含插件文件、安装压缩包和离线网页的 Release 草稿。首次进入社区目录还需单独提交审核。[Obsidian 插件发布指南](https://docs.obsidian.md/plugins/releasing/submit-plugin)
+
+## 许可证
+
+项目代码采用 MIT 许可证。内附的 markdown-it 14.1.0、MathJax 3.2.2 和改编自 Math Paste Bridge 的 TeX 识别代码附有各自的许可声明。[项目许可证](LICENSE) · [第三方许可全文](THIRD-PARTY-LICENSES.txt)

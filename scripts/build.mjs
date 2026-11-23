@@ -11,8 +11,8 @@ for (const match of page.matchAll(/<script src="([^"]+)"><\/script>/g)) {
 }
 const css = await read('src/style.css');
 page = page.replace('<link rel="stylesheet" href="src/style.css">', () => '<style>' + css + '</style>');
-const licenses = await read('THIRD-PARTY-LICENSES.txt');
-page = page.replace('</html>', () => '<script type="text/plain" id="library-licenses">' + licenses + '</script>\n</html>');
+const licenses = await read('LICENSE') + '\n' + await read('THIRD-PARTY-LICENSES.txt');
+page = page.replace(/<\/html>\s*$/, () => '<script type="text/plain" id="library-licenses">' + licenses + '</script>\n</html>\n');
 await mkdir(new URL('dist/', root), { recursive: true });
 await writeFile(new URL('dist/gptchat-to-obsidian.html', root), page);
 console.log('Created dist/gptchat-to-obsidian.html');

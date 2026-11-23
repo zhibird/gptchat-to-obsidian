@@ -1,0 +1,56 @@
+name: Test and build
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Exercise the shipped HTML and plugin bundle
+        env:
+          FORMULA_NOTES_TEST_RELEASE: '1'
+        run: node --test test/web.test.cjs test/plugin.test.cjs
+      - name: Package the installable folder
+        working-directory: dist
+        run: zip -X -r formula-to-note.zip formula-to-note
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formula-to-note-release
+          path: |
+            dist/gptchat-to-obsidian.html
+            dist/formula-to-note.zip
+            dist/formula-to-note/main.js
+            dist/formula-to-note/manifest.json
+
+  draft-release:
+    if: github.ref_type == 'tag'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: formula-to-note-release
+          path: release
+      - name: Match the tag to the plugin manifest
+        run: test "$GITHUB_REF_NAME" = "$(jq -r .version release/formula-to-note/manifest.json)"
+      - name: Create a draft with the plugin and offline web app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --draft --generate-notes --title "$GITHUB_REF_NAME" \
+            release/formula-to-note/main.js release/formula-to-note/manifest.json \
+            release/formula-to-note.zip release/gptchat-to-obsidian.html
