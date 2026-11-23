@@ -6,11 +6,11 @@
 
 ## Obsidian 插件实录
 
-在 Obsidian 中启用 **Formula to Note**，像平时一样粘贴整段回复。动图左侧是原文，右侧是笔记。贝叶斯公式排成分式，逐行的符号说明恢复为两列表格。条件概率 `P(A|B)` 留在同一格，缩进代码里的 `\(x\)` 原样保留。
+把左侧的示例回复粘贴到右侧笔记，`\tau_t` 和 `y_t=m_{t+H}-m_t` 会自动排版，逐行的符号说明恢复成两列表格。接着点 Obsidian 左侧的 **Σ**，把笔记里已有的公式也排好。表格中的条件概率 `P(A|B)` 留在原单元格，缩进代码中的 `\tau_t` 保留原文。
 
-![在 Obsidian 中把左侧的贝叶斯推导粘贴到右侧笔记，得到排版后的公式、两行符号表和保留原文的代码块](docs/formula-to-note-demo.gif)
+![Formula to Note 1.4.0 实录。粘贴后自动排版无定界符公式并还原符号表，点击左侧 Σ 转换笔记中的已有公式](docs/formula-to-note-demo.gif)
 
-演示使用 Obsidian 1.15.0 和 Formula to Note 1.2.0。[安装插件](#obsidian-插件) · [从源码构建](#开发与发布)
+演示使用 Obsidian 1.15.0 和 Formula to Note 1.4.0。[下载演示版本](https://github.com/zhibird/gptchat-to-obsidian/releases/download/1.4.0/formula-to-note.zip) · [安装说明](#obsidian-插件)
 
 ## Obsidian 插件
 
