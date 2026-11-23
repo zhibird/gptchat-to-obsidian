@@ -1,6 +1,6 @@
 'use strict';
 
-const {Plugin, Notice} = require('obsidian');
+const {MarkdownView, Notice, Plugin} = require('obsidian');
 const createFormulaNotes = require('./converter');
 const markdownIt = require('../vendor/markdown-it.min.js');
 const converter = createFormulaNotes(markdownIt);
@@ -17,6 +17,12 @@ function convertInEditor(editor, input, fromRich = false) {
   if (!fromRich && result.value === input.replace(/\r\n?/g, '\n')) return null;
   if (context.tableCell && start === end) return result.value.replace(/(?<!\\)\|/g, '\\|');
   return result.value;
+}
+
+function convertSelection(editor) {
+  const value = convertInEditor(editor, editor.getSelection());
+  if (value === null) new Notice('选区已保留原样。');
+  else editor.replaceSelection(value);
 }
 
 module.exports = class FormulaToNote extends Plugin {
@@ -40,18 +46,57 @@ module.exports = class FormulaToNote extends Plugin {
       editor.replaceSelection(output);
     }));
 
+    this.addRibbonIcon('sigma', '转换公式（选区或整篇笔记）', () =>
+      this.convertFromRibbon().catch(error => {
+        console.warn('Formula to Note could not convert the active note.', error);
+        new Notice('转换未完成，请重新打开笔记后再试。');
+      }));
+
     this.addCommand({
       id: 'convert-selection',
       name: 'Convert selected text to a formula note / 转换选区',
       editorCheckCallback(checking, editor) {
         if (!editor.somethingSelected() || editor.listSelections().length !== 1) return false;
-        if (!checking) {
-          const value = convertInEditor(editor, editor.getSelection());
-          if (value === null) new Notice('选区已保留原样。');
-          else editor.replaceSelection(value);
-        }
+        if (!checking) convertSelection(editor);
         return true;
       },
     });
+  }
+
+  async convertFromRibbon() {
+    const workspace = this.app.workspace;
+    let view = workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file) {
+      new Notice('请先打开一篇 Markdown 笔记。');
+      return;
+    }
+
+    const reading = view.getMode() === 'preview';
+    if (reading) {
+      // Use the live editor's undo history, including when starting in Reading view.
+      const {leaf, file} = view;
+      const state = leaf.getViewState();
+      await leaf.setViewState({...state, state: {...state.state, mode: 'source'}});
+      view = workspace.getActiveViewOfType(MarkdownView);
+      if (view?.leaf !== leaf || view.file !== file || view.getMode() !== 'source') return;
+    }
+
+    const editor = view.editor;
+    if (!reading && editor.listSelections().length !== 1) {
+      new Notice('请保留一个光标或选区，再点击转换。');
+      return;
+    }
+    if (!reading && editor.somethingSelected()) {
+      convertSelection(editor);
+    } else {
+      const source = editor.getValue();
+      const {value} = converter.convertNote(source, {unwrap: false});
+      if (value === source) {
+        new Notice('当前笔记没有需要转换的内容。');
+        return;
+      }
+      editor.replaceRange(value, {line: 0, ch: 0}, editor.offsetToPos(source.length));
+    }
+    editor.focus();
   }
 };

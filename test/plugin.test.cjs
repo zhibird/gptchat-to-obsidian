@@ -7,19 +7,30 @@ const vm = require('node:vm');
 const {createRequire} = require('node:module');
 const {JSDOM} = require('jsdom');
 
-function loadPlugin() {
+function loadPlugin(getActiveView = () => null) {
   const release = process.env.FORMULA_NOTES_TEST_RELEASE === '1';
   const entry = require.resolve(release ? '../dist/formula-to-note/main.js' : '../src/plugin');
   const localRequire = createRequire(entry);
   const target = {exports: {}};
-  const host = {Plugin: class {}, Notice: class {}};
+  const registered = {notices: []};
+  const host = {
+    MarkdownView: class {},
+    Plugin: class {},
+    Notice: class { constructor(text) { registered.notices.push(text); } },
+  };
   vm.compileFunction(fs.readFileSync(entry, 'utf8'), ['require', 'module'])(
     name => name === 'obsidian' ? host : localRequire(name), target,
   );
   const plugin = new target.exports();
-  const registered = {};
-  plugin.app = {workspace: {on(name, handler) { registered[name] = handler; return handler; }}};
+  plugin.app = {workspace: {
+    getActiveViewOfType(type) {
+      assert.equal(type, host.MarkdownView);
+      return getActiveView();
+    },
+    on(name, handler) { registered[name] = handler; return handler; },
+  }};
   plugin.registerEvent = () => {};
+  plugin.addRibbonIcon = (icon, title, click) => { registered.ribbon = {icon, title, click}; };
   plugin.addCommand = cmd => { registered[cmd.id] = cmd; };
   plugin.onload();
   return registered;
@@ -33,14 +44,20 @@ function editorAt(marked, selections = 1) {
     const lines = text.slice(0, offset).split('\n');
     return {line: lines.length - 1, ch: lines.at(-1).length};
   };
+  const toOffset = pos => text.split('\n').slice(0, pos.line).reduce((n, s) => n + s.length + 1, 0) + pos.ch;
+  let edits = 0;
   return {
+    get edits() { return edits; },
     getValue: () => text,
     getCursor: end => toPosition(end === 'from' ? from : to),
-    posToOffset: pos => text.split('\n').slice(0, pos.line).reduce((n, s) => n + s.length + 1, 0) + pos.ch,
+    posToOffset: toOffset,
+    offsetToPos: toPosition,
     getSelection: () => text.slice(from, to),
     somethingSelected: () => from !== to,
     listSelections: () => Array(selections).fill({}),
-    replaceSelection(value) { text = text.slice(0, from) + value + text.slice(to); },
+    replaceSelection(value) { text = text.slice(0, from) + value + text.slice(to); edits++; },
+    replaceRange(value, start, end) { text = text.slice(0, toOffset(start)) + value + text.slice(toOffset(end)); edits++; },
+    focus() {},
   };
 }
 
@@ -129,4 +146,58 @@ test('a partial selection cannot expose protected code by removing its delimiter
     registered['convert-selection'].editorCheckCallback(false, editor);
     assert.equal(editor.getValue(), marked.replace('«','').replace('»',''));
   }
+});
+
+function noteView(editor, mode = 'source') {
+  return {
+    file: {path: 'Test.md'}, editor, getMode: () => mode,
+    leaf: {
+      getViewState: () => ({type: 'markdown', state: {file: 'Test.md', mode}}),
+      async setViewState({state}) { mode = state.mode; },
+    },
+  };
+}
+
+test('ribbon converts the active note in one edit and skips an unchanged note', async () => {
+  const metadata = '---\nexample: "\\(meta\\)"\n---\n\n';
+  const text = metadata + '\\[x^2\\]\n\n|A|B|\n|-|-|\n|\\(P(A|B)\\)|概率|\n\n    «»\\(literal\\)';
+  const editor = editorAt(text);
+  const {ribbon} = loadPlugin(() => noteView(editor));
+  assert.equal(ribbon.icon, 'sigma');
+  assert.match(ribbon.title, /转换公式/);
+  await ribbon.click();
+  assert.equal(editor.getValue(), metadata + '$$\nx^2\n$$\n\n|A|B|\n|-|-|\n|$P(A\\vert B)$|概率|\n\n    \\(literal\\)');
+  assert.equal(editor.edits, 1);
+  await ribbon.click();
+  assert.equal(editor.edits, 1);
+});
+
+test('a ribbon click on a selection uses the same protections as the selection command', async () => {
+  const editor = editorAt('«\\(x\\)» 和 \\(y\\)');
+  await loadPlugin(() => noteView(editor)).ribbon.click();
+  assert.equal(editor.getValue(), '$x$ 和 \\(y\\)');
+  for (const protectedEditor of [editorAt('    «\\(code\\)»\n\n\\(outside\\)'), editorAt('«\\(x\\)» 和 \\(y\\)', 2)]) {
+    await loadPlugin(() => noteView(protectedEditor)).ribbon.click();
+    assert.equal(protectedEditor.edits, 0);
+  }
+});
+
+test('a ribbon click from Reading view edits the same note and ignores a previous editor selection', async () => {
+  const editor = editorAt('«\\(x\\)» 和 \\(y\\)');
+  const view = noteView(editor, 'preview');
+  await loadPlugin(() => view).ribbon.click();
+  assert.equal(view.getMode(), 'source');
+  assert.equal(editor.getValue(), '$x$ 和 $y$');
+  assert.equal(editor.edits, 1);
+});
+
+test('ribbon leaves other tabs alone when there is no Markdown view or the active file changes', async () => {
+  const inactive = loadPlugin();
+  await inactive.ribbon.click();
+  assert.match(inactive.notices[0], /Markdown/);
+  const editor = editorAt('«»\\(x\\)');
+  const view = noteView(editor, 'preview');
+  view.leaf.setViewState = async () => { view.file = {path: 'Other.md'}; view.getMode = () => 'source'; };
+  await loadPlugin(() => view).ribbon.click();
+  assert.equal(editor.edits, 0);
 });

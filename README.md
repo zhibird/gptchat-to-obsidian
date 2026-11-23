@@ -18,7 +18,9 @@
 
 1. 从包含插件的 [GitHub Release](https://github.com/zhibird/gptchat-to-obsidian/releases) 下载 `formula-to-note.zip`，解压到库的 `.obsidian/plugins/`。安装完成后，`.obsidian/plugins/formula-to-note/` 内应直接包含 `main.js` 和 `manifest.json`。从源码构建时，复制 `dist/formula-to-note/` 到相同位置即可。
 2. 重新加载 Obsidian，在「设置 → 第三方插件」中启用 **Formula to Note**。
-3. 从聊天回复复制一段推导，在笔记正文中粘贴。查看效果后可以用编辑器的撤销操作一次撤回。处理笔记中已有的材料时，选中文本，在命令面板运行 **Formula to Note: Convert selected text to a formula note / 转换选区**。
+3. 从聊天回复复制一段推导，在笔记正文中粘贴，公式就会自动转换。
+
+**处理已有笔记**时，点击 Obsidian 最左侧工具栏的 **Σ 转换公式**。有选区时按钮只转换选中的文字，只有光标时转换整篇。阅读视图中点击会在同一标签打开编辑视图并转换整篇。可用编辑器的撤销操作一次撤回。命令面板里的 **转换选区** 也可以单独处理选中的文字。
 
 Markdown 表格中的条件概率、范数和独立公式会留在同一个单元格内。四空格或制表符缩进形成的代码块、围栏代码、行内代码和笔记属性都受保护。粘贴文件、多光标粘贴和 Obsidian 内部复制沿用编辑器的原生行为。插件在本地处理当前操作，不需要账户或网络服务。
 
@@ -64,11 +66,11 @@ $$
 
 | 项目 | 转换发生在哪里 | 适用场景 |
 | --- | --- | --- |
-| Formula to Note | 编辑器粘贴事件、手动选区、独立网页共用转换逻辑 | 整段数学推导，含中文符号表、代码和偏好学习示例 |
-| Math Paste Bridge | 粘贴时从剪贴板恢复 LaTeX，并检查光标周围的 Markdown | 高频粘贴，也能识别部分没有定界符的 TeX |
+| Formula to Note | 自动粘贴、侧栏 Σ 按钮、选区命令和独立网页共用转换逻辑 | 整理整段推导或已有笔记，还原中文符号表，处理单元格里的条件概率和块公式 |
+| Math Paste Bridge 1.0.6 | 粘贴时从剪贴板恢复 LaTeX，检查光标周围的 Markdown | 新粘贴的原文即使缺少定界符，也能识别部分 TeX 和代数式，如 `\tau_t` 和 `y_t=m_{t+H}-m_t` |
 | Transfer LaTeX from GPT | 命令或侧栏按钮读取当前文件并替换公式定界符 | 对已有笔记执行整篇转换 |
 
-自动粘贴参考了 Math Paste Bridge 对编辑上下文的保护，手动命令参考了 Transfer LaTeX from GPT 的入口。这里的命令只替换选区，插件和网页复用同一份表格与代码处理规则。[Math Paste Bridge 粘贴实现](https://github.com/hlyang1992/math-paste-bridge/blob/449357f29808f59418cef21ed50c8f8216a00f0d/src/main.js) · [Transfer LaTeX from GPT 命令实现](https://github.com/xixia123/obsidian-transfer-latex-from-gpt/blob/4ae70733d602445656fabf65e12c674f8e3d862d/main.ts)
+我们和 Math Paste Bridge 都能从带 LaTeX 注解的富文本中提取公式。Math Paste Bridge 会跳过表格内的块公式和含未转义竖线的公式，避免拆列。Formula to Note 会把这类公式放在原单元格中，也能把逐行的「符号 / 含义」恢复为表格。侧栏 Σ 的位置参考了 Transfer LaTeX from GPT。[Math Paste Bridge 转换范围](https://github.com/hlyang1992/math-paste-bridge/blob/449357f29808f59418cef21ed50c8f8216a00f0d/README.zh-CN.md) · [Transfer LaTeX from GPT 按钮实现](https://github.com/xixia123/obsidian-transfer-latex-from-gpt/blob/4ae70733d602445656fabf65e12c674f8e3d862d/main.ts)
 
 ## 开发与发布
 
