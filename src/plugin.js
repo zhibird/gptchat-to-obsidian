@@ -1,6 +1,6 @@
 'use strict';
 
-const {MarkdownView, Notice, Plugin} = require('obsidian');
+const {getLanguage, MarkdownView, Notice, Plugin, PluginSettingTab, Setting} = require('obsidian');
 const createFormulaNotes = require('./converter');
 const markdownIt = require('../vendor/markdown-it.min.js');
 const converter = createFormulaNotes(markdownIt);
@@ -25,9 +25,51 @@ function convertSelection(editor) {
   else editor.replaceSelection(value);
 }
 
+class FormulaToNoteSettings extends PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display() {
+    this.containerEl.empty();
+    const language = getLanguage?.() ?? globalThis.navigator?.language ?? 'en';
+    const chinese = language.toLowerCase().startsWith('zh');
+    new Setting(this.containerEl)
+      .setName(chinese ? '粘贴时自动转换' : 'Convert on paste')
+      .setDesc(chinese
+        ? '粘贴到笔记时自动排版公式并整理符号表。关闭时使用 Obsidian 的常规粘贴。'
+        : 'Format equations and rebuild symbol tables when pasting into a note. Turn this off to use the standard Obsidian paste.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.convertOnPaste)
+        .onChange(async enabled => {
+          toggle.setDisabled(true);
+          const settings = {...this.plugin.settings, convertOnPaste: enabled};
+          try {
+            await this.plugin.saveData(settings);
+            this.plugin.settings = settings;
+          } catch (error) {
+            console.warn('Formula to Note could not save its settings.', error);
+            toggle.setValue(this.plugin.settings.convertOnPaste);
+            new Notice(chinese ? '未能保存粘贴设置，请重试。' : 'Could not save the paste setting. Please try again.');
+          } finally {
+            toggle.setDisabled(false);
+          }
+        }));
+  }
+}
+
 module.exports = class FormulaToNote extends Plugin {
-  onload() {
+  async onload() {
+    const saved = await this.loadData().catch(error => {
+      console.warn('Formula to Note could not load its settings.', error);
+      return null;
+    });
+    this.settings = {...saved, convertOnPaste: saved?.convertOnPaste !== false};
+    this.addSettingTab(new FormulaToNoteSettings(this.app, this));
+
     this.registerEvent(this.app.workspace.on('editor-paste', (event, editor) => {
+      if (!this.settings.convertOnPaste) return;
       const data = event.clipboardData;
       if (event.defaultPrevented || !data || data.files?.length || editor.listSelections().length !== 1) return;
       if (data.getData('text/html').includes('<!-- obsidian -->')) return;

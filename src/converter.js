@@ -325,11 +325,19 @@ function createFormulaNotes(markdownIt) {
     let richMath=false;
     if(html){
       const rich=readRich(html,document);
-      if(!md && !rich.missing && preferenceCards(rich.value)!==rich.value) value=rich.value;
-      if((!md && (!value || rich.hasCode || rich.recovered || rich.links || rich.images || rich.unavailable || (rich.table && !/^\s*\|.*\|/m.test(value)))) || (rich.images && !rich.missing && !/!\[/.test(value))) value=rich.value;
-      if(value===rich.value) richMath=!!(rich.recovered || rich.cellMath);
-      if(rich.missing) warning='部分公式缺少 LaTeX 源码，请核对，或使用 ChatGPT 回复下方的复制按钮重新复制。';
-      if(rich.unavailable) warning+=' 有 '+rich.unavailable+' 张图片或图形没有可用的网址，请另存图片后拖入 Obsidian。';
+      const richText = !md && (!value || rich.hasCode || rich.recovered || rich.links || rich.images ||
+        rich.unavailable || (rich.table && !/^\s*\|.*\|/m.test(value)) ||
+        (!rich.missing && preferenceCards(rich.value) !== rich.value));
+      const useRich = richText || (rich.images && !rich.missing && !rich.unavailable && !/!\[/.test(value));
+      if (useRich) {
+        value = rich.value;
+        richMath = !!(rich.recovered || rich.cellMath);
+      }
+      // Warnings from an alternate HTML flavor should not veto source Markdown.
+      if (!md || useRich) {
+        if(rich.missing) warning='部分公式缺少 LaTeX 源码，请核对，或使用 ChatGPT 回复下方的复制按钮重新复制。';
+        if(rich.unavailable) warning+=' 有 '+rich.unavailable+' 张图片或图形没有可用的网址，请另存图片后拖入 Obsidian。';
+      }
     }
     if(Array.from(data.items || []).some(item=>item.kind==='file'&&item.type.startsWith('image/'))) warning+=' 剪贴板含有图片文件，请将图片保存后拖入 Obsidian。';
     return {value,warning,richMath};

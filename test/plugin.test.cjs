@@ -1,5 +1,5 @@
 'use strict';
-const {test} = require('node:test');
+const {before, test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const {createRequire} = require('node:module');
 const {JSDOM} = require('jsdom');
 
-function loadPlugin(getActiveView = () => null) {
+async function loadPlugin(getActiveView = () => null, storage = {data: null}) {
   const release = process.env.FORMULA_NOTES_TEST_RELEASE === '1';
   const entry = require.resolve(release ? '../dist/formula-to-note/main.js' : '../src/plugin');
   const localRequire = createRequire(entry);
@@ -17,6 +17,22 @@ function loadPlugin(getActiveView = () => null) {
     MarkdownView: class {},
     Plugin: class {},
     Notice: class { constructor(text) { registered.notices.push(text); } },
+    PluginSettingTab: class { containerEl = {empty() {}}; },
+    Setting: class {
+      setName(name) { registered.settingName = name; return this; }
+      setDesc() { return this; }
+      addToggle(configure) {
+        const toggle = {
+          setValue(value) { this.value = value; return this; },
+          setDisabled(disabled) { this.disabled = disabled; return this; },
+          onChange(handler) { this.change = handler; return this; },
+        };
+        configure(toggle);
+        registered.toggle = toggle;
+        return this;
+      }
+    },
+    getLanguage: () => 'en',
   };
   vm.compileFunction(fs.readFileSync(entry, 'utf8'), ['require', 'module'])(
     name => name === 'obsidian' ? host : localRequire(name), target,
@@ -30,9 +46,12 @@ function loadPlugin(getActiveView = () => null) {
     on(name, handler) { registered[name] = handler; return handler; },
   }};
   plugin.registerEvent = () => {};
+  plugin.loadData = async () => structuredClone(storage.data);
+  plugin.saveData = async data => { storage.data = structuredClone(data); };
+  plugin.addSettingTab = tab => { registered.settingsTab = tab; };
   plugin.addRibbonIcon = (icon, title, click) => { registered.ribbon = {icon, title, click}; };
   plugin.addCommand = cmd => { registered[cmd.id] = cmd; };
-  plugin.onload();
+  await plugin.onload();
   return registered;
 }
 
@@ -61,15 +80,17 @@ function editorAt(marked, selections = 1) {
   };
 }
 
-const registered = loadPlugin();
-function paste(editor, formats, {files = [], handled = false, document} = {}) {
+let registered;
+before(async () => { registered = await loadPlugin(); });
+
+function paste(editor, formats, {files = [], handled = false, document, handlers = registered} = {}) {
   const event = {
     defaultPrevented: handled,
     target: {ownerDocument: document},
     clipboardData: {files, items: [], getData: format => formats[format] || ''},
     preventDefault() { this.defaultPrevented = true; },
   };
-  registered['editor-paste'](event, editor);
+  handlers['editor-paste'](event, editor);
   return event.defaultPrevented;
 }
 
@@ -77,6 +98,44 @@ test('paste replaces only the selection and uses clipboard Markdown first', () =
   const editor = editorAt('前 \\(unchanged\\) «old» 后');
   assert.ok(paste(editor, {'text/plain':'glyphs', 'text/markdown':'\\(x_t\\)'}));
   assert.equal(editor.getValue(), '前 \\(unchanged\\) $x_t$ 后');
+});
+
+test('auto-convert starts on, applies a settings change immediately, and reloads the saved choice', async () => {
+  const storage = {data: null};
+  const existing = editorAt('«»\\(x\\)');
+  const initial = await loadPlugin(() => noteView(existing), storage);
+  initial.settingsTab.display();
+  assert.equal(initial.settingName, 'Convert on paste');
+  assert.equal(initial.toggle.value, true);
+
+  const clipboard = {'text/plain':'\\(y\\)'};
+  const fresh = editorAt('«»');
+  assert.ok(paste(fresh, clipboard, {handlers: initial}));
+  assert.equal(fresh.getValue(), '$y$');
+  await initial.toggle.change(false);
+  assert.equal(paste(editorAt('«»'), clipboard, {handlers: initial}), false);
+  await initial.ribbon.click();
+  assert.equal(existing.getValue(), '$x$');
+
+  const reopened = await loadPlugin(undefined, storage);
+  reopened.settingsTab.display();
+  assert.equal(reopened.toggle.value, false);
+  assert.equal(paste(editorAt('«»'), clipboard, {handlers: reopened}), false);
+  await reopened.toggle.change(true);
+  assert.equal(storage.data.convertOnPaste, true);
+  assert.ok(paste(editorAt('«»'), clipboard, {handlers: reopened}));
+});
+
+test('a lossy alternate HTML flavor does not block automatic conversion of source Markdown', () => {
+  const {window} = new JSDOM('');
+  try {
+    const html = '<p><span class="katex">visual glyphs</span><svg></svg></p>';
+    const markdown = '模型输出 \\(x_t\\)';
+    const canvas = editorAt('«»');
+    assert.ok(paste(canvas, {'text/html':html, 'text/markdown':markdown}, {document:window.document}));
+    assert.equal(canvas.getValue(), '模型输出 $x_t$');
+    assert.equal(paste(editorAt('«»'), {'text/html':html, 'text/plain':'visual glyphs'}, {document:window.document}), false);
+  } finally { window.close(); }
 });
 
 test('bare TeX and an equation with no backslash are recognized by editor paste', () => {
@@ -189,7 +248,7 @@ test('ribbon converts the active note in one edit and skips an unchanged note', 
   const metadata = '---\nexample: "\\(meta\\)"\n---\n\n';
   const text = metadata + '延迟 \\tau_t。\n\n\\[x^2\\]\n\n|A|B|\n|-|-|\n|\\(P(A|B)\\)|y_t=m_{t+H}-m_t|\n\n    «»\\tau_t';
   const editor = editorAt(text);
-  const {ribbon} = loadPlugin(() => noteView(editor));
+  const {ribbon} = await loadPlugin(() => noteView(editor));
   assert.equal(ribbon.icon, 'sigma');
   assert.match(ribbon.title, /转换公式/);
   await ribbon.click();
@@ -201,10 +260,12 @@ test('ribbon converts the active note in one edit and skips an unchanged note', 
 
 test('a ribbon click on a selection uses the same protections as the selection command', async () => {
   const editor = editorAt('«\\tau_t» 和 \\(y\\)');
-  await loadPlugin(() => noteView(editor)).ribbon.click();
+  const {ribbon} = await loadPlugin(() => noteView(editor));
+  await ribbon.click();
   assert.equal(editor.getValue(), '$\\tau_t$ 和 \\(y\\)');
   for (const protectedEditor of [editorAt('    «\\(code\\)»\n\n\\(outside\\)'), editorAt('«\\(x\\)» 和 \\(y\\)', 2)]) {
-    await loadPlugin(() => noteView(protectedEditor)).ribbon.click();
+    const protectedNote = await loadPlugin(() => noteView(protectedEditor));
+    await protectedNote.ribbon.click();
     assert.equal(protectedEditor.edits, 0);
   }
 });
@@ -212,19 +273,21 @@ test('a ribbon click on a selection uses the same protections as the selection c
 test('a ribbon click from Reading view edits the same note and ignores a previous editor selection', async () => {
   const editor = editorAt('«\\(x\\)» 和 \\(y\\)');
   const view = noteView(editor, 'preview');
-  await loadPlugin(() => view).ribbon.click();
+  const {ribbon} = await loadPlugin(() => view);
+  await ribbon.click();
   assert.equal(view.getMode(), 'source');
   assert.equal(editor.getValue(), '$x$ 和 $y$');
   assert.equal(editor.edits, 1);
 });
 
 test('ribbon leaves other tabs alone when there is no Markdown view or the active file changes', async () => {
-  const inactive = loadPlugin();
+  const inactive = await loadPlugin();
   await inactive.ribbon.click();
   assert.match(inactive.notices[0], /Markdown/);
   const editor = editorAt('«»\\(x\\)');
   const view = noteView(editor, 'preview');
   view.leaf.setViewState = async () => { view.file = {path: 'Other.md'}; view.getMode = () => 'source'; };
-  await loadPlugin(() => view).ribbon.click();
+  const {ribbon} = await loadPlugin(() => view);
+  await ribbon.click();
   assert.equal(editor.edits, 0);
 });

@@ -1,12 +1,14 @@
 # 公式转笔记 · GPTChat to Obsidian
 
+**简体中文** · [English](README.en.md)
+
 **[在线使用](https://zhibird.github.io/gptchat-to-obsidian/)**　·　[下载离线网页](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)　·　[安装 Obsidian 插件](#obsidian-插件)
 
 把含公式、符号表、图片和参考链接的 ChatGPT 回复整理成 Obsidian 笔记。可以直接粘贴到装有插件的编辑器，也可以先在网页版预览，再复制全文。
 
 ## Obsidian 插件实录
 
-把左侧的示例回复粘贴到右侧笔记，`\tau_t` 和 `y_t=m_{t+H}-m_t` 会自动排版，逐行的符号说明恢复成两列表格。接着点 Obsidian 左侧的 **Σ**，把笔记里已有的公式也排好。表格中的条件概率 `P(A|B)` 留在原单元格，缩进代码中的 `\tau_t` 保留原文。
+把左侧的示例回复粘贴到右侧笔记，`\tau_t` 和 `y_t=m_{t+H}-m_t` 就会自动排版，逐行的符号说明也会恢复成两列表格。后半段的 **Σ** 演示处理的是笔记里原有的分式。表格中的条件概率 `P(A|B)` 留在原单元格，缩进代码中的 `\tau_t` 保留原文。
 
 ![Formula to Note 1.4.0 实录。粘贴后自动排版无定界符公式并还原符号表，点击左侧 Σ 转换笔记中的已有公式](docs/formula-to-note-demo.gif)
 
@@ -18,7 +20,9 @@
 
 1. 从包含插件的 [GitHub Release](https://github.com/zhibird/gptchat-to-obsidian/releases) 下载 `formula-to-note.zip`，解压到库的 `.obsidian/plugins/`。安装完成后，`.obsidian/plugins/formula-to-note/` 内应直接包含 `main.js` 和 `manifest.json`。从源码构建时，复制 `dist/formula-to-note/` 到相同位置即可。
 2. 重新加载 Obsidian，在「设置 → 第三方插件」中启用 **Formula to Note**。
-3. 从聊天回复复制一段推导，在笔记正文中粘贴，公式就会自动转换。
+3. 从聊天回复复制一段推导，在笔记正文中粘贴，插入的就是转换好的内容。
+
+**粘贴时自动转换**默认开启。可以在「设置 → Formula to Note」中关闭或重新开启。
 
 **处理已有笔记**时，点击 Obsidian 最左侧工具栏的 **Σ 转换公式**。有选区时按钮只转换选中的文字，只有光标时转换整篇。阅读视图中点击会在同一标签打开编辑视图并转换整篇。可用编辑器的撤销操作一次撤回。命令面板里的 **转换选区** 也可以单独处理选中的文字。
 
@@ -80,7 +84,7 @@ $$
 
 提交转换问题时，可附上脱敏的原文、复制方式和预期 Markdown。成对的[输入和预期结果](test/fixtures)可用作新测试的起点。
 
-发布时同步更新 `manifest.json`、`versions.json` 和 npm 包版本。在 GitHub 上推送与插件版本完全一致的标签（如 `1.2.0`）。测试和构建通过后，Actions 创建包含插件文件、安装压缩包和离线网页的 Release 草稿。首次进入社区目录还需单独提交审核。[Obsidian 插件发布指南](https://docs.obsidian.md/plugins/releasing/submit-plugin)
+发布时同步更新 `manifest.json`、`versions.json` 和 npm 包版本。在 GitHub 上推送与插件版本完全一致的标签（如 `1.5.0`）。测试和构建通过后，Actions 创建包含插件文件、安装压缩包和离线网页的 Release 草稿。首次进入社区目录还需单独提交审核。[Obsidian 插件发布指南](https://docs.obsidian.md/plugins/releasing/submit-plugin)
 
 ## 许可证
 
