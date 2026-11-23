@@ -85,3 +85,94 @@ test('an unclosed table formula cannot swallow the next row', () => {
   assert.equal(result.value, input.replace('\\(y\\)', '$y$'));
   assert.equal(result.unmatched, true);
 });
+
+test('bare TeX and a complete scripted equation share the delimited math path', () => {
+  const input = String.raw`字段 a_b，延迟为 \tau_t，目标为 y_t=m_{t+H}-m_t。
+\frac{1}{2}+\sqrt{x^2}
+已标记的 $\alpha$、\(v_t\) 和裸公式 **\beta_t**。`;
+  const expected = String.raw`字段 a_b，延迟为 $\tau_t$，目标为 $y_t=m_{t+H}-m_t$。
+$\frac{1}{2}+\sqrt{x^2}$
+已标记的 $\alpha$、$v_t$ 和裸公式 **$\beta_t$**。`;
+  const result = convertNote(input);
+  assert.equal(result.value, expected);
+  assert.equal(result.count, 5);
+  assert.equal(convert(expected), expected);
+  assert.equal(convertNote(expected).count, 0);
+});
+
+test('bare math leaves identifiers, literal contexts and incomplete expressions intact', () => {
+  const input = [
+    String.raw`---
+name: \tau_t
+target: y_t=m_{t+H}-m_t
+---`,
+    '普通说明 (test)、a_b、foo_bar、x_t=1、a=b，售价 $10。',
+    String.raw`C:\tau_t\logs，./\tau_t、\tau_t.md 和 https://example.test/?q=y_t=m_{t+H}-m_t`,
+    String.raw`[\tau_t](notes/y_t=m_{t+H}-m_t) 与 [[Notebook|y_t=m_{t+H}-m_t]]`,
+    String.raw`[ref]: notes/y_t=m_{t+H}-m_t`,
+    '`\\tau_t` 和代码字符串 "\\tau_t"、lookup(y_t=m_{t+H}-m_t)',
+    String.raw`~~~latex
+\tau_t
+y_t=m_{t+H}-m_t
+~~~`,
+    String.raw`    \tau_t
+    y_t=m_{t+H}-m_t`,
+    String.raw`>     \tau_t`,
+    String.raw`<pre>
+y_t=m_{t+H}-m_t
+</pre>`,
+    String.raw`\unsupported{ \tau_t } 与 \text{literal text}`,
+    String.raw`不完整的关系式 y_t=m_{t+H}-`,
+    String.raw`不完整的定界符 \(\tau_t`,
+    String.raw`未配对的 $\tau_t`,
+  ].join('\n\n');
+  assert.equal(convert(input), input);
+  assert.equal(convert(String.raw`路径 [例](https://x.test/?ref=\tau_t)，此处 \tau_t 是延迟。`),
+    String.raw`路径 [例](https://x.test/?ref=\tau_t)，此处 $\tau_t$ 是延迟。`);
+  assert.equal(convert('~~~\n\\tau_t\n~~~'), '~~~\n\\tau_t\n~~~');
+  assert.equal(convert('~~~md\ny_t=m_{t+H}-m_t\n~~~'), '~~~md\ny_t=m_{t+H}-m_t\n~~~');
+  assert.equal(convert('~~~md\n# 笔记\n\\(x\\)\n\n\\tau_t\n~~~'), '# 笔记\n$x$\n\n$\\tau_t$');
+  assert.equal(convert('~~~md\n现有公式 $x_t$\n~~~'), '现有公式 $x_t$');
+});
+
+test('table cells keep their boundaries when bare and marked formulas coexist', () => {
+  const input = String.raw`公式 | \tau_t
+--- | ---
+y_t=m_{t+H}-m_t | 模型
+\(P(A|B)\) | 条件概率
+\[\|v\|^2\] | 范数
+$P(A\|B)$ | 已转义`;
+  const expected = String.raw`公式 | $\tau_t$
+--- | ---
+$y_t=m_{t+H}-m_t$ | 模型
+$P(A\vert B)$ | 条件概率
+$\displaystyle \Vert v\Vert^2$ | 范数
+$P(A\|B)$ | 已转义`;
+  assert.equal(convert(input), expected);
+  const tokens = markdownIt().parse(expected, {});
+  assert.equal(tokens.filter(token => token.type === 'th_open').length, 2);
+  assert.equal(tokens.filter(token => token.type === 'td_open').length, 8);
+  assert.equal(convert(expected), expected);
+});
+
+test('rich clipboard keeps code markers when the plain version flattens them', () => {
+  const {window} = new JSDOM('');
+  try {
+    const html = String.raw`<p>延迟为 \tau_t，示例 <code>\tau_t</code>。</p>
+<table><tr><th>公式</th><th>含义</th></tr>
+<tr><td>y_t=m_{t+H}-m_t</td><td>目标</td></tr>
+<tr><td><span data-tex="P(A|B)">visual</span></td><td>条件概率</td></tr></table>`;
+    const plain = String.raw`延迟为 \tau_t，示例 \tau_t。`;
+    for (const text of ['', plain]) {
+      const data = {getData: type => ({'text/html':html, 'text/plain':text}[type] || '')};
+      const clip = readClipboard(data, window.document);
+      const output = convert(clip.value);
+      assert.match(output, /延迟为 \$\\tau_t\$，示例 `\\tau_t`。/);
+      assert.ok(output.includes('| $y_t=m_{t+H}-m_t$ | 目标 |'));
+      assert.ok(output.includes('| $P(A\\vert B)$ | 条件概率 |'));
+    }
+    const codeOnly = {'text/plain': 'y_t=m_{t+H}-m_t', 'text/html': '<pre><code>y_t=m_{t+H}-m_t</code></pre>'};
+    const literal = readClipboard({getData: type => codeOnly[type] || ''}, window.document);
+    assert.equal(convert(literal.value), '```\ny_t=m_{t+H}-m_t\n```');
+  } finally { window.close(); }
+});

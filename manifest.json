@@ -1,7 +1,7 @@
 {
   "id": "formula-to-note",
   "name": "Formula to Note",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "minAppVersion": "1.5.0",
   "description": "Turn pasted ChatGPT explanations into notes with intact equations, symbol tables, and code blocks.",
   "author": "zhibird",

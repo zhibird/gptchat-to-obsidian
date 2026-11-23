@@ -2,6 +2,7 @@
 
 // Classic scripts work from a local HTML file. The plugin bundles the same factory.
 function createFormulaNotes(markdownIt) {
+  const bare = typeof module !== 'undefined' && module.exports ? require('./bare-math') : bareMath;
   const parser = markdownIt({html: false});
 
   function unwrapMarkdown(s){
@@ -11,7 +12,11 @@ function createFormulaNotes(markdownIt) {
     const closing=new RegExp('^ {0,3}'+fence[1][0]+'{'+fence[1].length+',}[ \\t]*$');
     if(lines.findIndex((line,i)=>i>0 && closing.test(line))!==lines.length-1) return s;
     const body=lines.slice(1,-1).join('\n');
-    return fence[2] || (/\\[[(]/.test(body) && /^[ \t]*(?:#{1,6} |\|.*\||\\{1,2}\[)/m.test(body)) ? body : s;
+    const hasBackslashDelimiters = /\\[[(]/.test(body);
+    const noteLayout = /^[ \t]*(?:#{1,6} |\|.*\||\\{1,2}\[)/m.test(body);
+    // A fence containing only unmarked TeX can be a Markdown code example.
+    if (fence[2] && (noteLayout || /(?<!\\)\$(?!\s)[^$\n]+\$|\$\$[\s\S]+?\$\$/.test(body))) return body;
+    return hasBackslashDelimiters && (fence[2] || noteLayout) ? body : s;
   }
 
   function imageAddress(value){
@@ -73,13 +78,25 @@ function createFormulaNotes(markdownIt) {
     return '$' + (display ? '\\displaystyle ' : '') + tex + '$';
   }
 
-  function convertMath(s, inTable=false){
+  function convertMath(s, {inTable = false, detectBare = false} = {}){
     let out='', pos=0, count=0, repaired=0, unmatched=false;
+    const scanBare = detectBare && /[\\_^]/.test(s) ? bare.scan(s) : null;
+    let bareResume = 0;
+    function appendProse(end) {
+      const start = Math.min(end, Math.max(pos, bareResume));
+      if (scanBare && start < end) {
+        const result = scanBare(start, end);
+        out += embedImageLinks(s.slice(pos, start) + result.value);
+        count += result.count;
+      } else {
+        out += embedImageLinks(s.slice(pos, end));
+      }
+    }
     const tokens=/^ {0,3}(?:`{3,}|~{3,})[^\n]*|`+|\\+[()[\]]|(?<!\\)\${1,2}|^&#(?:x20|32);/gmi;
     let match;
     while((match=tokens.exec(s))){
       const start=match.index, token=match[0];
-      out+=embedImageLinks(s.slice(pos,start));
+      appendProse(start);
       pos=tokens.lastIndex;
       if(token[0]==='&'){out+=' ';continue}
       const fence=token.match(/^ {0,3}(`{3,}|~{3,})/);
@@ -101,6 +118,8 @@ function createFormulaNotes(markdownIt) {
         closing.lastIndex=pos;
         const end=closing.exec(s);
         if(!end || (!block && (/\s/.test(s[pos]||' ') || /[\n$]/.test(s.slice(pos,end.index))))){
+          if (block) bareResume = s.length;
+          else if (/[^\s\d]/.test(s[pos] || '')) bareResume = Math.max(bareResume, s.indexOf('\n', pos) + 1 || s.length);
           out+=token;continue;
         }
         const original=s.slice(pos,end.index);
@@ -120,6 +139,7 @@ function createFormulaNotes(markdownIt) {
           end=s.indexOf(close,end+2);
         }
         if(end<0 || /\n[ \t]*\n/.test(s.slice(pos,end)) && !block){
+          bareResume = block ? s.length : Math.max(bareResume, s.indexOf('\n', pos) + 1 || s.length);
           unmatched=true;out+=token;continue;
         }
         let body=s.slice(pos,end).trim();
@@ -140,7 +160,8 @@ function createFormulaNotes(markdownIt) {
       }
       tokens.lastIndex=pos;
     }
-    return {value:out+embedImageLinks(s.slice(pos)), count, repaired, unmatched};
+    appendProse(s.length);
+    return {value:out, count, repaired, unmatched};
   }
 
   // Plain-text clipboard data sometimes puts each cell of a glossary on its own line.
@@ -159,7 +180,7 @@ function createFormulaNotes(markdownIt) {
         const rows=[];
         while(/^\$[^$\n]+\$$/.test(lines[j]?.trim()||'') && lines[j+1]?.trim() && !/^[|#$]/.test(lines[j+1].trim())){
           const symbol=lines[j].trim().slice(1,-1);
-          const meaning=convertMath(lines[j+1].trim(),true).value.replace(/(?<!\\)\|/g,'\\|');
+          const meaning=convertMath(lines[j+1].trim(), {inTable: true}).value.replace(/(?<!\\)\|/g,'\\|');
           rows.push('| '+cellFormula(symbol,false,false)+' | '+meaning+' |');
           j+=2;
         }
@@ -226,7 +247,7 @@ function createFormulaNotes(markdownIt) {
     const template=document.createElement('template');
     template.innerHTML=html;
     const root=template.content;
-    let recovered=0, missing=0, images=0, unavailable=0, links=0, cellMath=false;
+    let recovered=0, missing=0, images=0, unavailable=0, links=0, cellMath=false, hasCode=false;
     const mathSelector='.katex-display,.katex,math,mjx-container,[data-math],[data-latex],[data-tex]';
     function walk(n){
       if(n.nodeType===3) return n.data.replace(/\s+/g,' ');
@@ -234,12 +255,14 @@ function createFormulaNotes(markdownIt) {
       const tag=n.localName;
       if(['style','script','button','noscript'].includes(tag)) return '';
       if(tag==='pre'){
+        hasCode=true;
         const code=n.querySelector('code')||n;
         const lang=code.className.match?.(/(?:^|\s)language-([\w-]+)/)?.[1]||'';
         const ticks='`'.repeat(Math.max(3,...Array.from(code.textContent.matchAll(/`+/g),m=>m[0].length+1)));
         return '\n\n'+ticks+lang+'\n'+code.textContent.replace(/\n$/,'')+'\n'+ticks+'\n\n';
       }
       if(tag==='code'){
+        hasCode=true;
         const ticks='`'.repeat(Math.max(1,...Array.from(n.textContent.matchAll(/`+/g),m=>m[0].length+1)));
         return ticks+n.textContent+ticks;
       }
@@ -267,7 +290,7 @@ function createFormulaNotes(markdownIt) {
       if(tag==='table'){
         const rows=Array.from(n.rows,row=>Array.from(row.cells,cell=>{
           const value=Array.from(cell.childNodes,walk).join('').trim().replace(/\s*\n+\s*/g,' ');
-          const converted=convertMath(value,true).value;
+          const converted=convertMath(value, {inTable: true}).value;
           if(converted!==value) cellMath=true;
           return converted.replace(/(?<!\\)\|/g,'\\|');
         }));
@@ -293,7 +316,7 @@ function createFormulaNotes(markdownIt) {
       return body;
     }
     const value=Array.from(root.childNodes,walk).join('').trim();
-    return {value,recovered,missing,images,unavailable,links,cellMath,table:!!root.querySelector('table')};
+    return {value,recovered,missing,images,unavailable,links,cellMath,hasCode,table:!!root.querySelector('table')};
   }
   function readClipboard(data, document=globalThis.document){
     const html=data.getData('text/html');
@@ -303,7 +326,7 @@ function createFormulaNotes(markdownIt) {
     if(html){
       const rich=readRich(html,document);
       if(!md && !rich.missing && preferenceCards(rich.value)!==rich.value) value=rich.value;
-      if((!md && (rich.recovered || rich.links || rich.images || rich.unavailable || (rich.table && !/^\s*\|.*\|/m.test(value)))) || (rich.images && !rich.missing && !/!\[/.test(value))) value=rich.value;
+      if((!md && (!value || rich.hasCode || rich.recovered || rich.links || rich.images || rich.unavailable || (rich.table && !/^\s*\|.*\|/m.test(value)))) || (rich.images && !rich.missing && !/!\[/.test(value))) value=rich.value;
       if(value===rich.value) richMath=!!(rich.recovered || rich.cellMath);
       if(rich.missing) warning='部分公式缺少 LaTeX 源码，请核对，或使用 ChatGPT 回复下方的复制按钮重新复制。';
       if(rich.unavailable) warning+=' 有 '+rich.unavailable+' 张图片或图形没有可用的网址，请另存图片后拖入 Obsidian。';
@@ -320,7 +343,7 @@ function createFormulaNotes(markdownIt) {
       const divider = lines[index + 1] || '';
       if (line.includes('|') && /^[ \t>]*\|?\s*:?-+:?\s*(?:\||$)/.test(divider)) {
         // An unescaped pipe inside a header formula can hide the table itself.
-        return convertMath(line, true).value;
+        return convertMath(line, {inTable: true}).value;
       }
       return line;
     });
@@ -338,10 +361,11 @@ function createFormulaNotes(markdownIt) {
     return kinds;
   }
 
-  function convertNote(input, {tableCell = false, tableRows = false, unwrap = true} = {}) {
+  function convertNote(input, {tableCell = false, tableRows = false, unwrap = true, detectBare = true} = {}) {
     const normalized = input.replace(/\r\n?/g, '\n');
-    if (tableCell) return convertMath(normalized, true);
-    const lines = (unwrap ? unwrapMarkdown(normalized) : normalized).split('\n');
+    if (tableCell) return convertMath(normalized, {inTable: true, detectBare});
+    const content = unwrap ? unwrapMarkdown(normalized) : normalized;
+    const lines = content.split('\n');
     const kinds = classifyRows(lines);
     if (tableRows) {
       for (let i = 0; i < lines.length; i++) {
@@ -367,7 +391,7 @@ function createFormulaNotes(markdownIt) {
         // A delimiter missing from one cell must never consume the next table row.
         const fragments = kind === 'table' ? lines.slice(start, end) : [chunk];
         for (const fragment of fragments) {
-          const result = convertMath(fragment, kind === 'table');
+          const result = convertMath(fragment, {inTable: kind === 'table', detectBare});
           prose.push(result.value);
           count += result.count;
           repaired += result.repaired;
@@ -398,14 +422,15 @@ function createFormulaNotes(markdownIt) {
     let start = line, end = line + 1;
     while (start > 0 && kinds[start - 1] === kind) start--;
     while (end < lines.length && kinds[end] === kind) end++;
-    const probe = convertMath(lines.slice(start, end).join('\n'), kind === 'table');
+    const probe = convertMath(lines.slice(start, end).join('\n'), {inTable: kind === 'table'});
     if (!probe.value.includes('$' + marker + '$')) return null;
-    if (kind !== 'table') return {};
+    const detectBare = !bare.literalSpans(source).some(span => span.start < from && from < span.end);
+    if (kind !== 'table') return {detectBare};
     const after = source.slice(to);
     const startsLine = !linePrefix.trim();
     const endsLine = !after.split('\n', 1)[0].trim() || (from < to && source[to - 1] === '\n');
-    if (startsLine && endsLine) return {tableRows: from !== to};
-    return {tableCell: true};
+    if (startsLine && endsLine) return {tableRows: from !== to, detectBare};
+    return {tableCell: true, detectBare};
   }
 
   return {convertNote, readClipboard, editorContext};

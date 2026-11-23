@@ -35,7 +35,7 @@ module.exports = class FormulaToNote extends Plugin {
       try {
         const clip = converter.readClipboard(data, event.target?.ownerDocument);
         if (!clip.value || clip.warning) return;
-        if (!clip.richMath && !/[\\$]|\]\(|符号|Prompt/i.test(clip.value)) return;
+        if (!clip.richMath && !/[\\$_^]|\]\(|符号|Prompt/i.test(clip.value)) return;
         output = convertInEditor(editor, clip.value, clip.richMath);
       } catch (error) {
         console.warn('Formula to Note could not read this paste.', error);

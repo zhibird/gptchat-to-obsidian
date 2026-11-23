@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const {JSDOM} = require('jsdom');
 const read = name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
 
-test('web paste, MathJax preview and copy all retain the four table rows', async () => {
+async function withWebApp(run) {
   const release = process.env.FORMULA_NOTES_TEST_RELEASE === '1';
   const dom = new JSDOM(read(release ? 'dist/gptchat-to-obsidian.html' : 'index.html'), {
     url: 'https://example.org/',
@@ -20,6 +20,7 @@ test('web paste, MathJax preview and copy all retain the four table rows', async
     if (release) {
       assert.equal(doc.querySelectorAll('script[src], link[rel="stylesheet"]').length, 0);
       assert.match(doc.querySelector('#library-licenses').textContent, /MIT License[\s\S]+zhibird/);
+      assert.match(doc.querySelector('#library-licenses').textContent, /Copyright \(c\) 2026 hlyang1992/);
     }
     for (const script of Array.from(doc.scripts)) {
       if (script.type === 'text/plain') continue;
@@ -27,25 +28,35 @@ test('web paste, MathJax preview and copy all retain the four table rows', async
       vm.runInContext(file ? read(file) : script.textContent, dom.getInternalVMContext());
     }
     await window.MathJax.startup.promise;
-    const source = doc.querySelector('#src');
-    const event = new window.Event('paste', {bubbles: true, cancelable: true});
-    const input = read('test/fixtures/table.html');
-    Object.defineProperty(event, 'clipboardData', {value: {getData: type => type === 'text/html' ? input : '', items: []}});
-    const preview = doc.querySelector('#preview');
-    const rendered = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('No table preview was rendered')), 5000);
-      const observer = new window.MutationObserver(() => {
-        if (preview.querySelector('tbody')) {
-          observer.disconnect();
-          clearTimeout(timeout);
-          resolve();
-        }
-      });
-      observer.observe(preview, {childList: true});
+    await run(doc, window);
+  } finally { window.close(); }
+}
+
+async function pasteAndRender(window, type, input) {
+  const doc = window.document;
+  const event = new window.Event('paste', {bubbles: true, cancelable: true});
+  Object.defineProperty(event, 'clipboardData', {value: {getData: format => format === type ? input : '', items: []}});
+  const preview = doc.querySelector('#preview');
+  await new Promise((resolve, reject) => {
+    const observer = new window.MutationObserver(() => {
+      observer.disconnect();
+      clearTimeout(timeout);
+      resolve();
     });
-    source.dispatchEvent(event);
-    await rendered;
-    assert.equal(event.defaultPrevented, true);
+    const timeout = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error('No preview was rendered'));
+    }, 5000);
+    observer.observe(preview, {childList: true});
+    doc.querySelector('#src').dispatchEvent(event);
+  });
+  assert.equal(event.defaultPrevented, true);
+  return preview;
+}
+
+test('web paste, MathJax preview and copy all retain the four table rows', () =>
+  withWebApp(async (doc, window) => {
+    const preview = await pasteAndRender(window, 'text/html', read('test/fixtures/table.html'));
     const rows = Array.from(preview.querySelectorAll('tbody tr'));
     assert.equal(rows.length, 4);
     assert.deepEqual(rows.map(row => row.cells.length), [2, 2, 2, 2]);
@@ -66,5 +77,16 @@ test('web paste, MathJax preview and copy all retain the four table rows', async
     doc.querySelector('#save').click();
     assert.equal(filename, '公式笔记.md');
     assert.equal(await savedBlob.text(), expected);
-  } finally { window.close(); }
-});
+  }));
+
+test('web preview renders bare formulas and displays the same source literally inside code', () =>
+  withWebApp(async (doc, window) => {
+    const input = '延迟为 \\tau_t。\n\n| 公式 | 说明 |\n| --- | --- |\n| y_t=m_{t+H}-m_t | 目标 |\n\n    literal = "\\tau_t"';
+    const preview = await pasteAndRender(window, 'text/plain', input);
+    assert.equal(preview.querySelectorAll('mjx-container svg').length, 2);
+    assert.equal(preview.querySelectorAll('.math-error').length, 0);
+    assert.equal(preview.querySelector('tbody tr').cells.length, 2);
+    assert.equal(preview.querySelector('pre code').textContent.trimEnd(), 'literal = "\\tau_t"');
+    doc.querySelector('#showSource').click();
+    assert.equal(doc.querySelector('#dst').value, '延迟为 $\\tau_t$。\n\n| 公式 | 说明 |\n| --- | --- |\n| $y_t=m_{t+H}-m_t$ | 目标 |\n\n    literal = "\\tau_t"');
+  }));

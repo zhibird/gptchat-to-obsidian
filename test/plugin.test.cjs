@@ -79,6 +79,16 @@ test('paste replaces only the selection and uses clipboard Markdown first', () =
   assert.equal(editor.getValue(), '前 \\(unchanged\\) $x_t$ 后');
 });
 
+test('bare TeX and an equation with no backslash are recognized by editor paste', () => {
+  const editor = editorAt('前 «old» 后');
+  const input = 'y_t=m_{t+H}-m_t';
+  assert.ok(paste(editor, {'text/plain':input}));
+  assert.equal(editor.getValue(), '前 $y_t=m_{t+H}-m_t$ 后');
+  const note = editorAt('«»');
+  assert.ok(paste(note, {'text/markdown':'延迟 \\tau_t，标识符 a_b。','text/plain':'visual'}));
+  assert.equal(note.getValue(), '延迟 $\\tau_t$，标识符 a_b。');
+});
+
 test('annotated HTML clipboard reaches the same output as the web tool', () => {
   const {window} = new JSDOM('');
   try {
@@ -100,6 +110,7 @@ for (const marks of ['~~~js\n«»\n~~~', '示例\n\n    s = «»', '文本 `raw 
   test('native paste inside ' + marks.replace(/\n/g, ' '), () => {
     const editor = editorAt(marks);
     assert.equal(paste(editor, {'text/plain':'\\(x\\)'}), false);
+    assert.equal(paste(editor, {'text/plain':'y_t=m_{t+H}-m_t'}), false);
     assert.equal(editor.getValue(), marks.replace('«»',''));
   });
 }
@@ -107,6 +118,7 @@ for (const marks of ['~~~js\n«»\n~~~', '示例\n\n    s = «»', '文本 `raw 
 test('ordinary, attachment, multi-cursor, internal and already handled pastes stay native', () => {
   const editor = editorAt('«»');
   assert.equal(paste(editor, {'text/plain':'ordinary text'}), false);
+  assert.equal(paste(editor, {'text/plain':'an_id, a_b, x_t=1, and a=b'}), false);
   assert.equal(paste(editor, {'text/plain':'$x$'}), false);
   assert.equal(paste(editor, {'text/plain':'\\(x\\)'}, {files: [{}]}), false);
   assert.equal(paste(editorAt('«»', 2), {'text/plain':'\\(x\\)'}), false);
@@ -140,6 +152,21 @@ test('pasting into a cell keeps literal text pipes inside the same cell', () => 
   assert.equal(editor.getValue(), '|a|b|\n|-|-|\n|one|x \\| y, $t$|');
 });
 
+test('bare math paste in a table cell stays inline beside existing math', () => {
+  const editor = editorAt('|a|b|\n|-|-|\n|$P(A\\|B)$|«»|\n|after|$x$|');
+  assert.ok(paste(editor, {'text/plain':'\\tau_t，y_t=m_{t+H}-m_t'}));
+  assert.equal(editor.getValue(), '|a|b|\n|-|-|\n|$P(A\\|B)$|$\\tau_t$，$y_t=m_{t+H}-m_t$|\n|after|$x$|');
+});
+
+test('bare conversion respects the link surrounding an existing selection or cursor', () => {
+  const editor = editorAt('[docs](https://example.test/?q=«y_t=m_{t+H}-m_t») 和 \\tau_t');
+  registered['convert-selection'].editorCheckCallback(false, editor);
+  assert.equal(editor.edits, 0);
+  const link = editorAt('[docs](https://example.test/«»)');
+  assert.equal(paste(link, {'text/plain':'\\tau_t'}), false);
+  assert.equal(link.edits, 0);
+});
+
 test('a partial selection cannot expose protected code by removing its delimiter or indentation', () => {
   for (const marked of ['文字 `s = «\\(x\\)`»', '代码\n\n  «  s = \\(x\\)»']) {
     const editor = editorAt(marked);
@@ -160,22 +187,22 @@ function noteView(editor, mode = 'source') {
 
 test('ribbon converts the active note in one edit and skips an unchanged note', async () => {
   const metadata = '---\nexample: "\\(meta\\)"\n---\n\n';
-  const text = metadata + '\\[x^2\\]\n\n|A|B|\n|-|-|\n|\\(P(A|B)\\)|概率|\n\n    «»\\(literal\\)';
+  const text = metadata + '延迟 \\tau_t。\n\n\\[x^2\\]\n\n|A|B|\n|-|-|\n|\\(P(A|B)\\)|y_t=m_{t+H}-m_t|\n\n    «»\\tau_t';
   const editor = editorAt(text);
   const {ribbon} = loadPlugin(() => noteView(editor));
   assert.equal(ribbon.icon, 'sigma');
   assert.match(ribbon.title, /转换公式/);
   await ribbon.click();
-  assert.equal(editor.getValue(), metadata + '$$\nx^2\n$$\n\n|A|B|\n|-|-|\n|$P(A\\vert B)$|概率|\n\n    \\(literal\\)');
+  assert.equal(editor.getValue(), metadata + '延迟 $\\tau_t$。\n\n$$\nx^2\n$$\n\n|A|B|\n|-|-|\n|$P(A\\vert B)$|$y_t=m_{t+H}-m_t$|\n\n    \\tau_t');
   assert.equal(editor.edits, 1);
   await ribbon.click();
   assert.equal(editor.edits, 1);
 });
 
 test('a ribbon click on a selection uses the same protections as the selection command', async () => {
-  const editor = editorAt('«\\(x\\)» 和 \\(y\\)');
+  const editor = editorAt('«\\tau_t» 和 \\(y\\)');
   await loadPlugin(() => noteView(editor)).ribbon.click();
-  assert.equal(editor.getValue(), '$x$ 和 \\(y\\)');
+  assert.equal(editor.getValue(), '$\\tau_t$ 和 \\(y\\)');
   for (const protectedEditor of [editorAt('    «\\(code\\)»\n\n\\(outside\\)'), editorAt('«\\(x\\)» 和 \\(y\\)', 2)]) {
     await loadPlugin(() => noteView(protectedEditor)).ribbon.click();
     assert.equal(protectedEditor.edits, 0);

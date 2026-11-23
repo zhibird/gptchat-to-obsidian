@@ -13,7 +13,7 @@ if (manifest.version !== JSON.parse(await read('package.json')).version ||
 const output = new URL('dist/' + manifest.id + '/', root);
 await mkdir(output, {recursive: true});
 const thirdParty = await read('THIRD-PARTY-LICENSES.txt');
-const markdownLicense = thirdParty.split(/\n(?=markdown-it )/).at(-1);
+const bundledLicenses = thirdParty.slice(thirdParty.indexOf('\nmarkdown-it ') + 1);
 await build({
   entryPoints: [fileURLToPath(new URL('src/plugin.js', root))],
   outfile: fileURLToPath(new URL('main.js', output)),
@@ -22,7 +22,7 @@ await build({
   platform: 'browser',
   target: 'es2021',
   external: ['obsidian'],
-  banner: {js: '/*\n' + await read('LICENSE') + '\n' + markdownLicense + '\n*/'},
+  banner: {js: '/*\n' + await read('LICENSE') + '\n' + bundledLicenses + '\n*/'},
 });
 await copyFile(new URL('manifest.json', root), new URL('manifest.json', output));
 console.log('Created dist/' + manifest.id + '/');
