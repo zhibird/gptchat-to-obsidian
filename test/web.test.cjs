@@ -22,6 +22,12 @@ async function withWebApp(run) {
       assert.match(doc.querySelector('#library-licenses').textContent, /MIT License[\s\S]+zhibird/);
       assert.match(doc.querySelector('#library-licenses').textContent, /Copyright \(c\) 2026 hlyang1992/);
     }
+    const styleLink = doc.querySelector('link[rel="stylesheet"]');
+    if (styleLink) {
+      const style = doc.createElement('style');
+      style.textContent = read(styleLink.getAttribute('href'));
+      styleLink.replaceWith(style);
+    }
     for (const script of Array.from(doc.scripts)) {
       if (script.type === 'text/plain') continue;
       const file = script.getAttribute('src');
@@ -61,11 +67,27 @@ test('web paste, MathJax preview and copy all retain the four table rows', () =>
     assert.equal(rows.length, 4);
     assert.deepEqual(rows.map(row => row.cells.length), [2, 2, 2, 2]);
     assert.deepEqual(rows.map(row => row.cells[0].textContent), ['条件概率', '范数', '块公式', '对照']);
-    for (const row of rows) assert.ok(row.cells[1].querySelector('mjx-container svg'));
+    assert.equal(doc.querySelectorAll('#MJX-SVG-styles').length, 1);
+    for (const row of rows) {
+      const svg = row.cells[1].querySelector('mjx-container svg');
+      const assistive = row.cells[1].querySelector('mjx-assistive-mml');
+      assert.equal(svg.getAttribute('aria-hidden'), 'true');
+      assert.ok(assistive.querySelector('math'));
+      const style = window.getComputedStyle(assistive);
+      assert.equal(style.position, 'absolute');
+      assert.match(style.clip, /^rect\(/);
+    }
     assert.equal(preview.querySelectorAll('.math-error').length, 0);
     const expected = read('test/fixtures/table-expected.md').trimEnd();
+    const source = doc.querySelector('#dst');
+    assert.equal(window.getComputedStyle(source).display, 'none');
     doc.querySelector('#showSource').click();
-    assert.equal(doc.querySelector('#dst').value, expected);
+    assert.equal(window.getComputedStyle(preview).display, 'none');
+    assert.equal(window.getComputedStyle(source).display, 'block');
+    assert.equal(source.value, expected);
+    doc.querySelector('#showPreview').click();
+    assert.notEqual(window.getComputedStyle(preview).display, 'none');
+    assert.equal(window.getComputedStyle(source).display, 'none');
     let copied;
     Object.defineProperty(window.navigator, 'clipboard', {value: {writeText: async text => { copied = text; }}});
     await doc.querySelector('#copy').onclick();

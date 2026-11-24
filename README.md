@@ -1,10 +1,22 @@
-# 公式转笔记 · GPTChat to Obsidian
+# Formula to Note
 
 **简体中文** · [English](README.en.md)
 
-**[在线使用](https://zhibird.github.io/gptchat-to-obsidian/)**　·　[下载离线网页](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)　·　[安装 Obsidian 插件](#obsidian-插件)
+**[安装 Obsidian 插件](#obsidian-插件)**　·　[官方插件页](https://community.obsidian.md/plugins/formula-to-note)　·　[在线使用](https://zhibird.github.io/gptchat-to-obsidian/)　·　[下载离线网页](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)
 
 把含公式、符号表、图片和参考链接的 ChatGPT 回复整理成 Obsidian 笔记。可以直接粘贴到装有插件的编辑器，也可以先在网页版预览，再复制全文。
+
+## Installation
+
+Formula to Note converts LaTeX in pasted ChatGPT replies into Markdown that Obsidian can render. It preserves Markdown tables and code blocks, and works with Obsidian 1.5.0 or later.
+
+1. In Obsidian, open **Settings → Community plugins**. If prompted, select **Turn on community plugins**.
+2. Select **Browse**, search for **Formula to Note**, and open the result by **zhibird**.
+3. Select **Install**, then **Enable**. You can also start from **Add to Obsidian** on the [official plugin page](https://community.obsidian.md/plugins/formula-to-note).
+
+## Usage
+
+Paste a reply containing equations into a note to format it automatically. To convert equations already in a note, select the text or leave the cursor in the note and click **Σ** in the left ribbon. [Full English guide](README.en.md)
 
 ## Obsidian 插件实录
 
@@ -18,9 +30,20 @@
 
 **Formula to Note（公式转笔记）** 可以直接在笔记编辑器中使用。适用于 Obsidian 1.5.0 及以上版本。
 
+### 在 Obsidian 内安装
+
+1. 打开「设置 → 第三方插件」。如有提示，先选择「开启第三方插件」。
+2. 点击「浏览」，搜索 **Formula to Note**，打开作者为 **zhibird** 的结果。
+3. 点击「安装」，然后点击「启用」。也可以从[官方插件页](https://community.obsidian.md/plugins/formula-to-note)点击 **Add to Obsidian** 打开安装页面。
+
+### 手动安装
+
 1. 从包含插件的 [GitHub Release](https://github.com/zhibird/gptchat-to-obsidian/releases) 下载 `formula-to-note.zip`，解压到库的 `.obsidian/plugins/`。安装完成后，`.obsidian/plugins/formula-to-note/` 内应直接包含 `main.js` 和 `manifest.json`。从源码构建时，复制 `dist/formula-to-note/` 到相同位置即可。
 2. 重新加载 Obsidian，在「设置 → 第三方插件」中启用 **Formula to Note**。
-3. 从聊天回复复制一段推导，在笔记正文中粘贴，插入的就是转换好的内容。
+
+### 使用方法
+
+从聊天回复复制一段推导，在笔记正文中粘贴，插入的就是转换好的内容。
 
 **粘贴时自动转换**默认开启。可以在「设置 → Formula to Note」中关闭或重新开启。
 

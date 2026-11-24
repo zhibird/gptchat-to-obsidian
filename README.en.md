@@ -1,8 +1,8 @@
-# Formula to Note · GPTChat to Obsidian
+# Formula to Note
 
 [简体中文](README.md) · **English**
 
-**[Open the web app](https://zhibird.github.io/gptchat-to-obsidian/)** · [Download offline HTML](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html) · [Install the Obsidian plugin](#obsidian-plugin)
+**[Install the Obsidian plugin](#obsidian-plugin)** · [Official plugin page](https://community.obsidian.md/plugins/formula-to-note) · [Open the web app](https://zhibird.github.io/gptchat-to-obsidian/) · [Download offline HTML](https://github.com/zhibird/gptchat-to-obsidian/releases/latest/download/gptchat-to-obsidian.html)
 
 Turn ChatGPT replies with equations, symbol tables, images, and references into Obsidian notes. Paste directly into the note editor with the plugin, or preview the converted Markdown in the standalone web app.
 
@@ -18,9 +18,20 @@ Recorded with Obsidian 1.15.0 and Formula to Note 1.4.0. [Download the version s
 
 **Formula to Note** works in the note editor with Obsidian 1.5.0 or later.
 
+### Install in Obsidian
+
+1. Open **Settings → Community plugins**. If prompted, select **Turn on community plugins**.
+2. Select **Browse**, search for **Formula to Note**, and open the result by **zhibird**.
+3. Select **Install**, then **Enable**. You can also start from **Add to Obsidian** on the [official plugin page](https://community.obsidian.md/plugins/formula-to-note).
+
+### Manual installation
+
 1. Download `formula-to-note.zip` and extract it into your vault's `.obsidian/plugins/` directory. The resulting `.obsidian/plugins/formula-to-note/` folder should contain `main.js` and `manifest.json`. To install from a source build, copy `dist/formula-to-note/` into the same plugins directory. [Latest GitHub release](https://github.com/zhibird/gptchat-to-obsidian/releases/latest)
 2. Reload Obsidian and enable **Formula to Note** under **Settings → Community plugins**.
-3. Copy a derivation from the chat reply and paste it into the note body. Obsidian inserts the converted content.
+
+### Usage
+
+Copy a derivation from the chat reply and paste it into the note body. Obsidian inserts the converted content.
 
 **Convert on paste** is on by default. You can turn it off or back on under **Settings → Formula to Note**.
 
